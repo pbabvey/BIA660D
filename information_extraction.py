@@ -625,5 +625,5 @@ def answer_question(question_string):
         print(answer)  
           
 #if __name__ == '__main__':
-#
+# It is just to check something
 #    pass
