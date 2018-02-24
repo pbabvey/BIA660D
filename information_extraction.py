@@ -187,14 +187,22 @@ def process_relation_triplet(triplet):
     """
 
 
-    # Process (PERSON, likes, PERSON) relations
+    """"
+    Get relationship information
+    Check that sentence is not negative
+    """ 
     if root.lemma_ == 'like' and "n't" not in triplet.predicate:
         if triplet.subject in [e.text for e in doc.ents if e.label_ == 'PERSON' or "ORG"] and triplet.object in [e.text for e in doc.ents if e.label_ == 'PERSON' or "ORG"]:
             if triplet.subject not in [pet.name for pet in pets] or triplet.object not in [pet.name for pet in pets]:
                 s = add_person(triplet.subject)
                 o = add_person(triplet.object)
-                s.likes.append(o)
-            
+                if o not in s.likes:
+                    s.likes.append(o)
+    
+    """"
+    Get trip information
+    'leave' structures
+    """             
     if root.lemma_ == 'leave' :
         if triplet.subject in [e.text for e in doc.ents if e.label_ == 'PERSON' or "ORG"]:
             person = triplet.subject
@@ -228,6 +236,10 @@ def process_relation_triplet(triplet):
  
             s.travels.append(trip)
 
+    """"
+    Get trip information
+    'fly' and 'go' structures
+    """     
     if root.lemma_ == 'fly' or root.lemma_ =='go':  
         passengers = [ str(name) for name in doc.ents if str(name) in triplet.subject]
         tlocation = None
@@ -269,10 +281,14 @@ def process_relation_triplet(triplet):
             trip = add_trip(passenger,tlocation,date)
  
             s.travels.append(trip)
-                    
+
+
+    """"
+    Get trip information
+    'take trip' structures
+    """                   
     if root.lemma_ == 'take' and 'trip' in str(doc):  
-     
-        
+          
         passengers = [ str(name) for name in doc.ents if str(name) in triplet.subject]
         tlocation = None
         date = None
@@ -308,7 +324,10 @@ def process_relation_triplet(triplet):
                     
                                       
                     
-            
+    """"
+    Get friendship information
+    I check the names not be in the list of pets
+    """           
     if root.lemma_ == 'be' and triplet.object.startswith('friends with'):
         fw_doc = nlp(unicode(triplet.object))
         with_token = [t for t in fw_doc if t.text == 'with'][0]
@@ -329,7 +348,10 @@ def process_relation_triplet(triplet):
                     if s not in o.likes:
                         o.likes.append(s)
 
-
+    """"
+    Get friendship information
+    I check the names not be in the list of pets
+    """
     if root.lemma_ == 'be' and 'friends' in triplet.object and 'and' in triplet.subject:
         fw_doc = nlp(unicode(triplet.subject))
         #and_token = [t for t in fw_doc if t.text == 'and'][0]
@@ -370,7 +392,10 @@ def process_relation_triplet(triplet):
             s_person.has.append(pet)
             
             
-        
+    """
+    Get pet ownership
+    For compound sentences in which pet's ownership and pet's name both are mentioned
+    """
     if str(root) == 'has' and doc[0].pos_ == 'PROPN' and ('dog' in triplet.object or 'cat' in triplet.object):
         obj_span = doc.char_span(sentence.find(triplet.object), len(sentence))
         subj_span = doc.char_span(sentence.find(triplet.subject), len(sentence))
@@ -393,7 +418,12 @@ def process_relation_triplet(triplet):
             pet = add_pet(s_pet_type, name)
             
             s.has.append(pet)      
-        
+    
+    """
+    Get the name of the pets
+    In simple sentences
+    """
+    
     if root.lemma_ == 'be' and doc[0].pos_ == 'PROPN' and ('dog' in triplet.subject or 'cat' in triplet.subject):
         obj_span = doc.char_span(sentence.find(triplet.object), len(sentence))
         subj_span = doc.char_span(sentence.find(triplet.subject), len(sentence))
@@ -412,7 +442,6 @@ def process_relation_triplet(triplet):
             
             pet = add_pet(s_pet_type, name)
      
-            
             s_person.has.append(pet)  
 
  
@@ -475,9 +504,12 @@ def main(question):
     
     
     
-        # 1. Who has a <pet_type>?
-        if q_trip.subject.lower() == 'who' and q_trip.object == 'dog':
-    
+        """
+        1. Who has a <pet_type>?
+        Checking the wh-word
+        Checking the pet type mentioned in the question
+        """
+        if q_trip.subject.lower() == 'who' and q_trip.object.lower() == 'dog':
             for person in persons:
                 pet = get_persons_pet(person.name)
                 if pet and pet.type == 'dog':
@@ -492,7 +524,12 @@ def main(question):
                     answers.append('{} has a {} named {}.'.format(person.name, 'cat', pet.name))
     
     
-        # 2. Who is [going to/flying to/traveling to/visiting] <place>?
+        """
+        2. Who is [going to/flying to/traveling to/visiting] <place>?
+        Checking the wh-word
+        Checking the verb which is used in the question
+        
+        """
         if q_trip.subject.lower() == 'who':
             check_list = (('going to' in question),('flying to' in question),
                           ('traveling to' in question),('visiting' in question))
@@ -508,7 +545,11 @@ def main(question):
                 else:
                     answers.append("I don't know")
                     
-        # 3. (does <person> like <person>?)
+        """ 
+        3. (does <person> like <person>?)
+        Check if the quesion yes/no or not
+        Check if the second person in the quesion is in the "like-list" of the first person 
+        """
         if str(ques[0]).lower() == 'does':
             accepted_subject = [person for person in persons if person.name in q_trip.subject]
             if len(accepted_subject) > 0:
@@ -526,14 +567,18 @@ def main(question):
                 answers.append("I don't know".format(ques.ents[0]))        
                     
                 
-        # 4. (What's the name of <person>'s <pet_type>?)
+        """
+        4. (What's the name of <person>'s <pet_type>?)
+        Check if the wh-quesion is what
+        Check if the person has pet or not
+        Report the name of the pet
+        """
+        #This part is for dogs
         if  'What' in [str(word) for word in ques] and 'dog' in [str(word) for word in ques]:
             name = str(ques.ents[0])
-            accepted_names = [person for person in persons if person.name == name]
-            
+            accepted_names = [person for person in persons if person.name == name]          
             if len(accepted_names) > 0:
                 owner = accepted_names[0]
-                #print(owner.name)
                 if len(owner.has) > 0 and owner.has[0].type == "dog":
                     answers.append( "{}'s {}'s name is {}.".format(owner.name,"dog",owner.has[0].name) )
     
@@ -542,7 +587,7 @@ def main(question):
     
             else:
                 answers.append("We have no information about this person")
-        #cat
+        #This part is for cats
         if  'What' in [str(word) for word in ques] and 'cat' in [str(word) for word in ques]:
             name = str(ques.ents[0])
             accepted_names = [person for person in persons if person.name == name]
@@ -555,15 +600,17 @@ def main(question):
     
                 else:
                     #answers.append("{} does not have a pet".format(owner))
-                    answers.append("I don't know")
-    
+                    answers.append("I don't know")   
             else:
                 answers.append("I don't know")
+       
                 
-                
-                        
-                
-        # 5. When is <person> [going to/flying to/traveling to/visiting] <place>?
+        """
+        5. When is <person> [going to/flying to/traveling to/visiting] <place>?
+        Check if the wh quesion is when
+        Checking the lemma_ of the root
+        Inquiring the trip list and "location"; I have defined a class for any trip
+        """
         if 'When' in list_maker(ques):
             check_list = (('going to' in question),('flying to' in question),
                           ('traveling to' in question),('visiting' in question))
@@ -579,7 +626,11 @@ def main(question):
                     answers.append("I don't know")  
     
     
-        # 6. (Who likes <person>?)
+        """
+        6. (Who likes <person>?)
+        Check the wh word; also check that the quesion contain like
+        Check the "like list" of the other player
+        """
         if q_trip.subject.lower() == 'who' and str(q_trip.predicate) =='likes':
             accepted_names = [person for person in persons if person.name == q_trip.object]
             
@@ -601,7 +652,11 @@ def main(question):
            
                    
     
-        #  7. (Who does <person> like?)
+        """
+        7. (Who does <person> like?)
+        Check the wh word; also check that the quesion contain like
+        Check the "like list" of the mentioned person
+        """
         if q_trip.object.lower() == 'who' and q_trip.predicate =='does like':
             accepted_names = [person for person in persons if person.name == q_trip.subject]
             if len(accepted_names) > 0:
@@ -624,6 +679,4 @@ def answer_question(question_string):
     for answer in answers:
         print(answer)  
           
-#if __name__ == '__main__':
-# It is just to check something
-#    pass
+
